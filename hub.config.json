@@ -1,13 +1,13 @@
 {
-  "hub_name": "My AI Club",
-  "hub_acronym": "MAIC",
-  "hub_id": "my-ai-club",
-  "university": "My University",
+  "hub_name": "Manchado Second TEST",
+  "hub_acronym": "MST",
+  "hub_id": "manchado-second-test",
+  "university": "Spain University",
   "description": "A student-run applied AI community.",
   "about": "We're a student-run applied AI community focused on building real AI products. No prior experience required — our curriculum starts at absolute zero and builds to shipping production apps.\n\nWe meet weekly to work through hands-on workshops, host speaker events, and collaborate on projects. Whether you're writing your first line of code or deploying ML models, there's a place for you here.",
   "theme": {
-    "primary_color": "#6366f1",
-    "accent_color": "#06b6d4"
+    "primary_color": "#eae54d",
+    "accent_color": "#e60000"
   },
   "links": {
     "discord": "",
@@ -17,9 +17,21 @@
     "email": ""
   },
   "officers": [
-    { "name": "Alex Johnson", "role": "President", "image": "" },
-    { "name": "Sam Rivera", "role": "VP of Engineering", "image": "" },
-    { "name": "Jordan Lee", "role": "VP of Events", "image": "" }
+    {
+      "name": "Alex Johnson",
+      "role": "President",
+      "image": ""
+    },
+    {
+      "name": "Sam Rivera",
+      "role": "VP of Engineering",
+      "image": ""
+    },
+    {
+      "name": "Jordan Lee",
+      "role": "VP of Events",
+      "image": ""
+    }
   ],
   "events": [
     {
