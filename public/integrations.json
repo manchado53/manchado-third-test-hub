@@ -1,0 +1,139 @@
+{
+  "$schema": "https://all-ai-network.org/schemas/integrations.schema.json",
+  "version": "1.2.0",
+  "description": "Canonical list of ALL Applied AI Network dashboard API integrations. This file is the ground truth for the hub website template — it drives both the template's own rendering code and the Website tab inside dashboard.all-ai-network.org. Edit this file to add or change integrations.",
+  "apiBase": "https://dashboard.all-ai-network.org",
+  "envVar": "AAIN_API_KEY",
+  "integrations": [
+    {
+      "id": "config",
+      "title": "Hub-site configuration",
+      "description": "Fetch your chapter's theme colors, logo URL, and section toggles from the dashboard. Drives the site's CSS variables, header logo, and which components render.",
+      "iconKey": "settings",
+      "accent": "#4f8fea",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/config",
+        "example": "/api/v1/config",
+        "queryParams": []
+      },
+      "templatePath": "src/main.ts",
+      "snippets": {
+        "javascript": "// Fetch the remote hub config on page load (or at build).\n// The dashboard's Website → Customize tab edits this.\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/config\",\n  { headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` } }\n);\nconst { config } = await res.json();\n\n// Theme: apply as CSS custom properties\ndocument.documentElement.style.setProperty(\"--primary\", config.theme.primary);\ndocument.documentElement.style.setProperty(\"--accent\",  config.theme.accent);\n\n// Logo: point the header <img> at the uploaded URL (or fall back)\nif (config.logo_url) {\n  document.querySelector(\"#site-logo\")?.setAttribute(\"src\", config.logo_url);\n}\n\n// Sections: hide anything toggled off\nfor (const [name, on] of Object.entries(config.sections)) {\n  if (!on) document.querySelector(`[data-section=\"${name}\"]`)?.remove();\n}",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/config\"",
+        "response": "{\n  \"config\": {\n    \"theme\": { \"primary\": \"#4f8fea\", \"accent\": \"#a855f7\" },\n    \"logo_url\": \"https://gdxifnnfirnzljtxnhch.supabase.co/storage/v1/object/public/chapter-logos/<chapter>/logo.png\",\n    \"sections\": {\n      \"hero\": true,\n      \"about\": true,\n      \"events\": true,\n      \"leaderboard\": true,\n      \"badges\": true,\n      \"merch\": true,\n      \"officers\": true,\n      \"learning_tree\": true,\n      \"playbooks\": true,\n      \"workshops\": true\n    },\n    \"updated_at\": \"2026-04-19T19:14:02.000Z\"\n  }\n}",
+        "agentPrompt": "Wire this hub site's theme, logo, and section visibility to the dashboard's config endpoint so the eboard can edit them remotely without touching this repo.\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/config\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (env var already set)\n- Response shape:\n    {\n      \"config\": {\n        \"theme\":    { \"primary\": \"#4f8fea\", \"accent\": \"#a855f7\" },\n        \"logo_url\": \"https://.../logo.png\" | null,\n        \"sections\": {\n          \"hero\": true, \"about\": true, \"events\": true, \"leaderboard\": true,\n          \"badges\": true, \"merch\": true, \"officers\": true,\n          \"learning_tree\": true, \"playbooks\": true, \"workshops\": true\n        },\n        \"updated_at\": \"2026-04-19T19:14:02.000Z\"\n      }\n    }\n\nImplementation requirements:\n\n1. Fetch server-side or at build time. If you're using Vite, inject the fetched config as a global via `define` in vite.config.ts. If you're using a framework with SSR (Next.js, Astro, SvelteKit), fetch in the layout or root route.\n2. Fall back gracefully when the fetch fails: use the defaults that ship with the template (hub.config.json theme colors, no custom logo, every section on). Don't block the page render on the API.\n3. Apply theme colors as CSS custom properties on `:root`. The template already references `var(--primary)` and `var(--accent)` — you just need to set them from the config on boot. Do NOT duplicate the colors into other class names; use the CSS variables only.\n4. When `config.logo_url` is set, render it in the header and favicon. When null, render the template's default (e.g., the wordmark or text-only logo). Size it consistently — roughly 32px tall in the header.\n5. For each section the template renders (hero, about, events, leaderboard, badges, merch, officers, learning_tree, playbooks, workshops), check `config.sections[key]`. Missing keys default to true. If off, omit the section entirely from the DOM — not just `display: none`, because layouts that stack sections will end up with gaps.\n6. For data-driven sections (events, leaderboard, badges, merch), render a tasteful empty state if the underlying API returns no rows — not the full section with broken-looking zero values. A one-line copy (\"Events will show up here as they're added\") is fine.\n7. Add a short comment at the top of wherever you consume `config` noting the shape and that it's remote-controlled, so future editors of this file understand why the values aren't hardcoded.\n\nDo NOT edit hub.config.json — leave it as the local-dev fallback for offline iteration."
+      }
+    },
+    {
+      "id": "events",
+      "title": "Upcoming events",
+      "description": "Render your chapter's next events on your homepage. Auto-updates as you add events in the dashboard.",
+      "iconKey": "calendar",
+      "accent": "#4f8fea",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/events",
+        "example": "/api/v1/events?upcoming=true&limit=5",
+        "queryParams": [
+          { "name": "upcoming", "type": "boolean", "description": "Return only events in the future" },
+          { "name": "limit", "type": "integer", "description": "Max number of events to return (1-100)" }
+        ]
+      },
+      "templatePath": "src/components/events-section.ts",
+      "snippets": {
+        "javascript": "// Fetch the next 5 upcoming events\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/events?upcoming=true&limit=5\",\n  {\n    headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` },\n  }\n);\nconst { events } = await res.json();\n\n// Render however you like\nevents.forEach((e) => {\n  console.log(e.title, new Date(e.date).toLocaleString());\n});",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/events?upcoming=true&limit=5\"",
+        "response": "{\n  \"events\": [\n    {\n      \"id\": \"evt_abc123\",\n      \"title\": \"Intro to Applied AI\",\n      \"description\": \"Kick-off session for the semester.\",\n      \"type\": \"workshop\",\n      \"date\": \"2026-09-12T23:30:00.000Z\",\n      \"points_attend\": 10,\n      \"points_win\": 0,\n      \"checkin_count\": 42\n    }\n  ]\n}",
+        "agentPrompt": "Add an \"Upcoming Events\" section to the homepage of this site.\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/events?upcoming=true&limit=5\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (the env var is already set — never hardcode it)\n- Response:\n    {\n      \"events\": [\n        { \"id\": \"evt_...\", \"title\": \"Intro to Applied AI\", \"description\": \"...\", \"type\": \"workshop\", \"date\": \"2026-09-12T23:30:00.000Z\", \"points_attend\": 10, \"points_win\": 0, \"checkin_count\": 42 }\n      ]\n    }\n\nRequirements:\n1. Fetch server-side (or at build time) so the API key never ships to the browser.\n2. Render each event as a card showing the title, a one-line description, a human-formatted date (\"Sep 12 · 6:30 PM\"), an event-type badge, and the checkin count.\n3. Empty state when there are no upcoming events — show a friendly message and a link to the chapter's Discord or email, whichever is set in hub.config.json.\n4. Match the existing design tokens (typography, spacing, colors) used by the rest of this codebase. Inspect sibling components before writing styles.\n5. Handle fetch errors gracefully — render a simple \"Check back soon\" fallback instead of crashing the page.\n\nPlace the section between the hero and the about-us content."
+      }
+    },
+    {
+      "id": "leaderboard",
+      "title": "Leaderboard",
+      "description": "Show the top members by XP. Great for a homepage widget or a dedicated members page.",
+      "iconKey": "leaderboard",
+      "accent": "#f59e0b",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/leaderboard",
+        "example": "/api/v1/leaderboard?limit=10",
+        "queryParams": [
+          { "name": "limit", "type": "integer", "description": "Max number of members to return (1-100)" }
+        ]
+      },
+      "templatePath": "src/components/leaderboard-widget.ts",
+      "snippets": {
+        "javascript": "// Fetch the top 10 members by XP\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/leaderboard?limit=10\",\n  {\n    headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` },\n  }\n);\nconst { leaderboard } = await res.json();\n\nleaderboard.forEach((row) => {\n  console.log(`#${row.rank} ${row.name} — ${row.points} XP`);\n});",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/leaderboard?limit=10\"",
+        "response": "{\n  \"leaderboard\": [\n    { \"name\": \"Jane Doe\",   \"points\": 1250, \"events_attended\": 18, \"rank\": 1 },\n    { \"name\": \"John Smith\", \"points\": 1100, \"events_attended\": 16, \"rank\": 2 },\n    { \"name\": \"Aisha Khan\", \"points\":  980, \"events_attended\": 14, \"rank\": 3 }\n  ]\n}",
+        "agentPrompt": "Add a \"Top Members\" leaderboard widget to this site.\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/leaderboard?limit=10\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (env var already set)\n- Response:\n    {\n      \"leaderboard\": [\n        { \"name\": \"Jane Doe\", \"points\": 1250, \"events_attended\": 18, \"rank\": 1 }\n      ]\n    }\n\nRequirements:\n1. Fetch server-side so the API key stays private.\n2. Render as a ranked list: 3 columns — rank (prominent), name (with events_attended as secondary text below), XP (right-aligned, large).\n3. Give the top 3 a gold/silver/bronze treatment (accent color on the rank number + subtle background tint).\n4. Cache for 1 hour (or per-request if this site is fully static).\n5. Match the existing design system — reuse typography and spacing tokens from sibling components.\n\nAdd it as a homepage section below events, or as a dedicated /leaderboard route — whichever fits the current routing conventions."
+      }
+    },
+    {
+      "id": "chapter",
+      "title": "Chapter stats",
+      "description": "Pull your chapter's name, university, member count, and event count — perfect for a hero banner or footer.",
+      "iconKey": "building",
+      "accent": "#a855f7",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/chapter",
+        "example": "/api/v1/chapter",
+        "queryParams": []
+      },
+      "templatePath": "src/components/hero.ts",
+      "snippets": {
+        "javascript": "// Fetch chapter metadata + headline stats\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/chapter\",\n  {\n    headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` },\n  }\n);\nconst { chapter } = await res.json();\n\n// e.g. \"500 members · 142 events run\"\ndocument.querySelector(\"#chapter-stats\").textContent =\n  `${chapter.member_count} members · ${chapter.event_count} events run`;",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/chapter\"",
+        "response": "{\n  \"chapter\": {\n    \"name\": \"MSOE AI Club\",\n    \"university\": \"Milwaukee School of Engineering\",\n    \"slug\": \"msoe\",\n    \"member_count\": 500,\n    \"event_count\": 142\n  }\n}",
+        "agentPrompt": "Add live chapter statistics to the hero section of this site.\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/chapter\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (env var already set)\n- Response:\n    {\n      \"chapter\": {\n        \"name\": \"MSOE AI Club\",\n        \"university\": \"Milwaukee School of Engineering\",\n        \"slug\": \"msoe\",\n        \"member_count\": 500,\n        \"event_count\": 142\n      }\n    }\n\nRequirements:\n1. Fetch at build time so numbers are embedded in the static HTML — no client loading state needed.\n2. Render as a 3-stat strip below the hero headline: member_count, event_count, and one derived stat (e.g., average events per month based on a chapter-age field in hub.config.json).\n3. Format: large number on top, small label below each, horizontally arranged and responsive.\n4. Replace any existing hardcoded \"500+ members\" text in the hero/about sections with these dynamic values.\n5. If the fetch fails at build, fall back to the values in hub.config.json so the site still builds.\n\nKeep animation minimal — a subtle fade-in on scroll is fine; avoid count-up animations that hurt Lighthouse scores."
+      }
+    },
+    {
+      "id": "badges",
+      "title": "Chapter badges",
+      "description": "Render the full catalog of recognition badges your chapter awards — with their name, description, icon, and how many members have earned each one.",
+      "iconKey": "award",
+      "accent": "#10b981",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/badges",
+        "example": "/api/v1/badges?limit=100",
+        "queryParams": [
+          { "name": "limit", "type": "integer", "description": "Max badges to return (1-500, default 100)" }
+        ]
+      },
+      "templatePath": "src/components/badges-wall.ts",
+      "snippets": {
+        "javascript": "// Pull every badge your chapter offers, sorted by creation order\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/badges\",\n  {\n    headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` },\n  }\n);\nconst { badges } = await res.json();\n\n// `icon` is either a built-in key (\"trophy\", \"award\", ...) OR a full\n// https URL to a custom image uploaded through the dashboard. Detect\n// the URL case and render <img> for it; otherwise pick a local SVG.\nbadges.forEach((b) => {\n  const isCustom = typeof b.icon === \"string\" && b.icon.startsWith(\"http\");\n  console.log(b.name, isCustom ? \"(custom image)\" : `(built-in: ${b.icon})`, `${b.award_count} earned`);\n});",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/badges\"",
+        "response": "{\n  \"badges\": [\n    {\n      \"id\": \"bdg_nvidia_dli\",\n      \"name\": \"NVIDIA DLI\",\n      \"description\": \"Completed an NVIDIA Deep Learning Institute certification.\",\n      \"icon\": \"https://gdxifnnfirnzljtxnhch.supabase.co/storage/v1/object/public/badge-icons/<chapter>/nvidia-dli.png\",\n      \"award_count\": 23\n    },\n    {\n      \"id\": \"bdg_rosie_finalist\",\n      \"name\": \"ROSIE Competition Finalist\",\n      \"description\": \"Top 8 finish in the annual MAIC ROSIE hackathon.\",\n      \"icon\": \"award\",\n      \"award_count\": 16\n    }\n  ]\n}",
+        "agentPrompt": "Build a \"Badges Wall\" section that showcases every recognition badge the chapter awards, with a count of how many members have earned each one.\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/badges\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (env var already set — never hardcode it)\n- Response shape:\n    {\n      \"badges\": [\n        { \"id\": \"bdg_...\", \"name\": \"NVIDIA DLI\", \"description\": \"...\", \"icon\": \"https://.../nvidia-dli.png\", \"award_count\": 23 },\n        { \"id\": \"bdg_...\", \"name\": \"ROSIE Finalist\", \"description\": \"...\", \"icon\": \"award\",                        \"award_count\": 16 }\n      ]\n    }\n\nCritical: the `icon` field has TWO forms.\n  - Custom image: starts with `https://` — render an <img src={icon} alt=\"\" /> sized to match the built-in icons. The image will already be optimized (we cap uploads at 1 MB).\n  - Built-in key: a short string like \"trophy\", \"award\", \"star\", \"nvidia\". Use your existing local SVG icon set (or a library like lucide-react) to render it. If the key isn't recognized, fall back to a generic award icon.\n\nRequirements:\n1. Fetch server-side (or at build) so the key stays private.\n2. Render as a responsive grid of cards: icon top-left (~40px), badge name, one-line description, and a subtle \"<N> earned\" pill. Cards should read in 3 seconds — don't crowd them.\n3. Sort by award_count descending so the most-earned badges appear first — that's what visitors want to see.\n4. If the chapter has 0 badges, skip rendering the section entirely (no empty state — just hide it).\n5. Match the existing design tokens (typography, spacing, color) used by the rest of this codebase; inspect sibling components before writing styles.\n\nPlace it below the leaderboard or between leaderboard and merch, whichever flow makes sense for this site's existing page structure."
+      }
+    },
+    {
+      "id": "merch",
+      "title": "Merch catalog",
+      "description": "Display the rewards your chapter offers in exchange for earned points — T-shirts, stickers, workshop vouchers — so members know what they're working toward.",
+      "iconKey": "package",
+      "accent": "#ec4899",
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/v1/merch",
+        "example": "/api/v1/merch?limit=50",
+        "queryParams": [
+          { "name": "include", "type": "string", "description": "Pass `all` to include hidden + out-of-stock items. Default returns only active items." },
+          { "name": "limit", "type": "integer", "description": "Max items to return (1-500, default 100)" }
+        ]
+      },
+      "templatePath": "src/components/merch-catalog.ts",
+      "snippets": {
+        "javascript": "// Pull the active merch catalog for this chapter\nconst res = await fetch(\n  \"https://dashboard.all-ai-network.org/api/v1/merch\",\n  {\n    headers: { Authorization: `Bearer ${process.env.AAIN_API_KEY}` },\n  }\n);\nconst { merch } = await res.json();\n\n// stock === null  → unlimited  (stickers, digital rewards, etc.)\n// stock === 0     → out of stock — still list it but mark it clearly\n// stock  >  0     → finite supply remaining\nmerch.forEach((item) => {\n  const stockLabel =\n    item.stock === null ? \"Unlimited\" :\n    item.stock === 0   ? \"Out of stock\" :\n    `${item.stock} left`;\n  console.log(`${item.name} — ${item.cost_points} pts · ${stockLabel}`);\n});",
+        "curl": "curl -H \"Authorization: Bearer $AAIN_API_KEY\" \\\n  \"https://dashboard.all-ai-network.org/api/v1/merch\"",
+        "response": "{\n  \"merch\": [\n    {\n      \"id\": \"mrch_tshirt\",\n      \"name\": \"MAIC T-Shirt\",\n      \"description\": \"Classic black tee with the MAIC logo.\",\n      \"cost_points\": 75,\n      \"image_url\": \"https://gdxifnnfirnzljtxnhch.supabase.co/storage/v1/object/public/merch-images/<chapter>/tshirt.jpg\",\n      \"stock\": 12,\n      \"is_active\": true,\n      \"created_at\": \"2026-04-19T14:02:31.000Z\"\n    },\n    {\n      \"id\": \"mrch_stickers\",\n      \"name\": \"Sticker pack\",\n      \"description\": \"Three vinyl stickers — MAIC logo, ROSIE, NVIDIA-Olympus.\",\n      \"cost_points\": 15,\n      \"image_url\": null,\n      \"stock\": null,\n      \"is_active\": true,\n      \"created_at\": \"2026-04-19T14:03:11.000Z\"\n    }\n  ]\n}",
+        "agentPrompt": "Build a \"Merch Catalog\" section that shows every reward the chapter offers in exchange for earned points. This is a display-only catalog — actual redemption happens in person at an event (no request-to-buy flow yet).\n\nData source: ALL Applied AI Network dashboard API.\n- Endpoint: GET https://dashboard.all-ai-network.org/api/v1/merch\n- Auth: `Authorization: Bearer ${process.env.AAIN_API_KEY}` (env var already set — never hardcode it)\n- Response shape:\n    {\n      \"merch\": [\n        {\n          \"id\": \"mrch_...\",\n          \"name\": \"MAIC T-Shirt\",\n          \"description\": \"Classic black tee with the MAIC logo.\",\n          \"cost_points\": 75,\n          \"image_url\": \"https://.../tshirt.jpg\" | null,\n          \"stock\": 12 | null,\n          \"is_active\": true,\n          \"created_at\": \"2026-04-19T14:02:31.000Z\"\n        }\n      ]\n    }\n\nCritical nuance on `stock`:\n  - `null` → unlimited supply (stickers, digital rewards). Render as \"Unlimited\" or hide the stock line entirely.\n  - `0`    → out of stock. Still list the item, but mark it visibly (grayscale image, \"Out of stock\" badge).\n  - `> 0`  → finite supply remaining. Render as \"<N> left\".\n\nAnd on `image_url`:\n  - A full https URL → render as <img src={image_url} alt={name} />. Images are raw uploads (no automatic CDN resizing), so apply object-fit: cover and a reasonable max size.\n  - `null` → render a tasteful placeholder (a solid-color block with the chapter accent color, or a generic package icon).\n\nRequirements:\n1. Fetch server-side so the key stays private.\n2. Render as a responsive grid of cards. Each card: photo on top (4:3 ratio), name, one-line description, cost pill (e.g., \"75 pts\" with a subtle accent-color background), and stock line.\n3. Out-of-stock items should read as muted — visibly distinct but not hidden. Don't let them feel like broken listings.\n4. Include a short heading + one-sentence subheading explaining how redemption works: \"Earn points by attending events and completing coursework. Redeem in person at any chapter event — see any eboard member to claim.\"\n5. If `merch` is empty, skip the section entirely (no empty state).\n6. Match the existing design system — reuse typography and spacing tokens from sibling components before defining new ones.\n\nPlace it on the homepage near the leaderboard, or as a dedicated /merch route. Link to the chapter's events page from the redemption callout so visitors know where to go."
+      }
+    }
+  ]
+}
